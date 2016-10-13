@@ -33,6 +33,7 @@ import android.widget.FrameLayout;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Set;
 
@@ -97,13 +98,13 @@ public class CameraView extends FrameLayout {
         // Internal setup
         final PreviewImpl preview = createPreviewImpl(context);
         mCallbacks = new CallbackBridge();
-        if (Build.VERSION.SDK_INT < 21) {
+//        if (Build.VERSION.SDK_INT < 21) {
             mImpl = new Camera1(mCallbacks, preview);
-        } else if (Build.VERSION.SDK_INT < 23) {
-            mImpl = new Camera2(mCallbacks, preview, context);
-        } else {
-            mImpl = new Camera2Api23(mCallbacks, preview, context);
-        }
+//        } else if (Build.VERSION.SDK_INT < 23) {
+//            mImpl = new Camera2(mCallbacks, preview, context);
+//        } else {
+//            mImpl = new Camera2Api23(mCallbacks, preview, context);
+//        }
         // Attributes
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CameraView, defStyleAttr,
                 R.style.Widget_CameraView);
@@ -401,7 +402,7 @@ public class CameraView extends FrameLayout {
 
     /**
      * Take a picture. The result will be returned to
-     * {@link Callback#onPictureTaken(CameraView, byte[])}.
+     * {@link Callback#onPictureTaken(CameraView, ByteBuffer, int, int)}.
      */
     public void takePicture() {
         mImpl.takePicture();
@@ -443,9 +444,9 @@ public class CameraView extends FrameLayout {
         }
 
         @Override
-        public void onPictureTaken(byte[] data) {
+        public void onPictureTaken(ByteBuffer data, int width, int height) {
             for (Callback callback : mCallbacks) {
-                callback.onPictureTaken(CameraView.this, data);
+                callback.onPictureTaken(CameraView.this, data, width, height);
             }
         }
 
@@ -488,7 +489,7 @@ public class CameraView extends FrameLayout {
             out.writeInt(flash);
         }
 
-        public static final Parcelable.Creator<SavedState> CREATOR
+        public static final Creator<SavedState> CREATOR
                 = ParcelableCompat.newCreator(new ParcelableCompatCreatorCallbacks<SavedState>() {
 
             @Override
@@ -509,32 +510,50 @@ public class CameraView extends FrameLayout {
      * Callback for monitoring events about {@link CameraView}.
      */
     @SuppressWarnings("UnusedParameters")
-    public abstract static class Callback {
+    public interface Callback {
 
         /**
          * Called when camera is opened.
          *
          * @param cameraView The associated {@link CameraView}.
          */
-        public void onCameraOpened(CameraView cameraView) {
-        }
+        void onCameraOpened(CameraView cameraView);
 
         /**
          * Called when camera is closed.
          *
          * @param cameraView The associated {@link CameraView}.
          */
-        public void onCameraClosed(CameraView cameraView) {
-        }
+        void onCameraClosed(CameraView cameraView);
 
         /**
          * Called when a picture is taken.
          *
          * @param cameraView The associated {@link CameraView}.
-         * @param data       JPEG data.
+         * @param data       Frame data.
+         * @param width      Frame width.
+         * @param height     Frame height.
          */
-        public void onPictureTaken(CameraView cameraView, byte[] data) {
+        void onPictureTaken(CameraView cameraView, ByteBuffer data, int width, int height);
+    }
+
+    /**
+     * Simple abstact class to extend subset of Callback methods
+     */
+    @SuppressWarnings({"UnusedParameters", "unused"})
+    public abstract static class CallbackAdapter
+            implements CameraView.Callback {
+
+        public void onCameraOpened(CameraView cameraView) {
+        }
+
+        public void onCameraClosed(CameraView cameraView) {
+        }
+
+        public void onPictureTaken(CameraView cameraView, ByteBuffer data, int width, int height) {
         }
     }
+
+
 
 }

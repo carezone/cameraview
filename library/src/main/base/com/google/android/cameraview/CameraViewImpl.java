@@ -18,6 +18,7 @@ package com.google.android.cameraview;
 
 import android.view.View;
 
+import java.nio.ByteBuffer;
 import java.util.Set;
 
 abstract class CameraViewImpl {
@@ -75,7 +76,7 @@ abstract class CameraViewImpl {
 
         void onCameraClosed();
 
-        void onPictureTaken(byte[] data);
+        void onPictureTaken(ByteBuffer data, int width, int height);
 
     }
 

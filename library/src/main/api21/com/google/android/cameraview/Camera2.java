@@ -30,12 +30,12 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.Build;
 import android.support.annotation.NonNull;
 import android.util.Log;
 import android.util.SparseIntArray;
 import android.view.Surface;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.SortedSet;
@@ -45,6 +45,8 @@ import java.util.SortedSet;
 class Camera2 extends CameraViewImpl {
 
     private static final String TAG = "Camera2";
+
+    private static final int IMAGE_FORMAT = ImageFormat.YUV_420_888;
 
     private static final SparseIntArray INTERNAL_FACINGS = new SparseIntArray();
 
@@ -156,19 +158,19 @@ class Camera2 extends CameraViewImpl {
 
         @Override
         public void onImageAvailable(ImageReader reader) {
-            try (Image image = reader.acquireNextImage()) {
-                Image.Plane[] planes = image.getPlanes();
+            try (final Image image = reader.acquireNextImage()) {
+                final Image.Plane[] planes = image.getPlanes();
                 if (planes.length > 0) {
-                    ByteBuffer buffer = planes[0].getBuffer();
-                    byte[] data = new byte[buffer.remaining()];
-                    buffer.get(data);
-                    mCallback.onPictureTaken(data);
+                    final Image.Plane plane = planes[0];
+                    mCallback.onPictureTaken(
+                        plane.getBuffer(), image.getWidth(), image.getHeight());
                 }
             }
         }
 
     };
 
+    private Context mContext;
 
     private String mCameraId;
 
@@ -438,8 +440,23 @@ class Camera2 extends CameraViewImpl {
     }
 
     protected void collectPictureSizes(SizeMap sizes, StreamConfigurationMap map) {
-        for (android.util.Size size : map.getOutputSizes(ImageFormat.JPEG)) {
-            mPictureSizes.add(new Size(size.getWidth(), size.getHeight()));
+        // try to get hi-res output sizes for Marshmallow and higher
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.util.Size[] outputSizes = map.getHighResolutionOutputSizes(IMAGE_FORMAT);
+            if (outputSizes != null) {
+                for (android.util.Size size : outputSizes) {
+                    mPictureSizes.add(new Size(size.getWidth(), size.getHeight()));
+                }
+            }
+        }
+        // fallback camera sizes and lower than Marshmallow
+        if (mPictureSizes.ratios().size() == 0) {
+            final android.util.Size[] outputSizes = map.getOutputSizes(IMAGE_FORMAT);
+            if (outputSizes != null) {
+                for (android.util.Size size : outputSizes) {
+                    mPictureSizes.add(new Size(size.getWidth(), size.getHeight()));
+                }
+            }
         }
     }
 
@@ -447,10 +464,31 @@ class Camera2 extends CameraViewImpl {
         if (mImageReader != null) {
             mImageReader.close();
         }
-        Size largest = mPictureSizes.sizes(mAspectRatio).last();
-        mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
-                ImageFormat.JPEG, /* maxImages */ 2);
+        final Size size = getBestPreviewSizeForProcessing(mPictureSizes.sizes(mAspectRatio));
+        mImageReader = ImageReader.newInstance(size.getWidth(), size.getHeight(),
+            IMAGE_FORMAT, /* maxImages */ 1);
         mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, null);
+    }
+
+    private Size getBestPreviewSizeForProcessing(final SortedSet<Size> sizes) {
+        // Try to get a decent size to send to the barcode detector
+        // Usually 1440x1080 is good enough
+
+        Size best = null;
+        int minBestDimension = Integer.MAX_VALUE;
+        for (final Size size : sizes) {
+            int minSizeDimension = Math.min(size.getWidth(), size.getHeight());
+            if (minSizeDimension < minBestDimension && minSizeDimension >= 1080) {
+                best = size;
+                minBestDimension = minSizeDimension;
+            }
+        }
+
+        if (best == null) {
+            best = sizes.last();
+        }
+
+        return best;
     }
 
     /**
@@ -474,16 +512,17 @@ class Camera2 extends CameraViewImpl {
         if (!isCameraOpened() || !mPreview.isReady() || mImageReader == null) {
             return;
         }
-        Size previewSize = chooseOptimalSize();
+        Size previewSize = getBestPreviewSize();
         mPreview.setBufferSize(previewSize.getWidth(), previewSize.getHeight());
         Surface surface = mPreview.getSurface();
         try {
             mPreviewRequestBuilder = mCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.addTarget(surface);
+            mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
             mCamera.createCaptureSession(Arrays.asList(surface, mImageReader.getSurface()),
                     mSessionCallback, null);
         } catch (CameraAccessException e) {
-            throw new RuntimeException("Failed to start camera session");
+            throw new RuntimeException("Failed to start camera session", e);
         }
     }
 
@@ -492,7 +531,7 @@ class Camera2 extends CameraViewImpl {
      *
      * @return The picked size for camera preview.
      */
-    private Size chooseOptimalSize() {
+    private Size getBestPreviewSize() {
         int surfaceLonger, surfaceShorter;
         final int surfaceWidth = mPreview.getWidth();
         final int surfaceHeight = mPreview.getHeight();

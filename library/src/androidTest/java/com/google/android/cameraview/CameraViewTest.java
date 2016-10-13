@@ -62,6 +62,7 @@ import org.junit.runner.RunWith;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Set;
 
 @RunWith(AndroidJUnit4.class)
@@ -278,7 +279,7 @@ public class CameraViewTest {
     private static class CameraViewIdlingResource implements IdlingResource, Closeable {
 
         private final CameraView.Callback mCallback
-                = new CameraView.Callback() {
+                = new CameraView.CallbackAdapter() {
 
             @Override
             public void onCameraOpened(CameraView cameraView) {
@@ -333,13 +334,18 @@ public class CameraViewTest {
     private static class TakePictureIdlingResource implements IdlingResource, Closeable {
 
         private final CameraView.Callback mCallback
-                = new CameraView.Callback() {
-            @Override
-            public void onPictureTaken(CameraView cameraView, byte[] data) {
+                = new CameraView.CallbackAdapter() {
+
+            @Override public void onPictureTaken(
+                final CameraView cameraView,
+                final ByteBuffer data,
+                final int width,
+                final int height) {
+
                 if (!mIsIdleNow) {
                     mIsIdleNow = true;
-                    mValidJpeg = data.length > 2 &&
-                            data[0] == (byte) 0xFF && data[1] == (byte) 0xD8;
+                    mValidJpeg = data.limit() > 2 &&
+                            data.get(0) == (byte) 0xFF && data.get(1) == (byte) 0xD8;
                     if (mResourceCallback != null) {
                         mResourceCallback.onTransitionToIdle();
                     }

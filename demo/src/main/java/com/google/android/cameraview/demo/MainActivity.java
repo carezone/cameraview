@@ -50,6 +50,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Set;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 
 
 /**
@@ -150,19 +153,6 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mBackgroundHandler != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-                mBackgroundHandler.getLooper().quitSafely();
-            } else {
-                mBackgroundHandler.getLooper().quit();
-            }
-            mBackgroundHandler = null;
-        }
-    }
-
-    @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
             @NonNull int[] grantResults) {
         switch (requestCode) {
@@ -247,34 +237,36 @@ public class MainActivity extends AppCompatActivity implements
             Log.d(TAG, "onCameraClosed");
         }
 
-        @Override
-        public void onPictureTaken(CameraView cameraView, final byte[] data) {
-            Log.d(TAG, "onPictureTaken " + data.length);
-            Toast.makeText(cameraView.getContext(), R.string.picture_taken, Toast.LENGTH_SHORT)
-                    .show();
-            getBackgroundHandler().post(new Runnable() {
-                @Override
-                public void run() {
-                    File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES),
-                            "picture.jpg");
-                    OutputStream os = null;
-                    try {
-                        os = new FileOutputStream(file);
-                        os.write(data);
-                        os.close();
-                    } catch (IOException e) {
-                        Log.w(TAG, "Cannot write to " + file, e);
-                    } finally {
-                        if (os != null) {
-                            try {
-                                os.close();
-                            } catch (IOException e) {
-                                // Ignore
+        @Override public void onPictureTaken(CameraView cameraView, final ByteBuffer data,
+                                             int width, int height) {
+                Log.d(TAG, "onPictureTaken " + data.remaining());
+                Toast.makeText(cameraView.getContext(), R.string.picture_taken, Toast.LENGTH_SHORT)
+                        .show();
+                getBackgroundHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+                                "picture.jpg");
+                        OutputStream os = null;
+                        try {
+                            os = new FileOutputStream(file);
+                            final WritableByteChannel channel = Channels.newChannel(os);
+                            channel.write(data);
+                            channel.close();
+
+                        } catch (IOException e) {
+                            Log.w(TAG, "Cannot write to " + file, e);
+                        } finally {
+                            if (os != null) {
+                                try {
+                                    os.close();
+                                } catch (IOException e) {
+                                    // Ignore
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
         }
 
     };
