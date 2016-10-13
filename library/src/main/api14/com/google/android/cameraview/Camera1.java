@@ -114,13 +114,20 @@ class Camera1 extends CameraViewImpl implements Camera.PreviewCallback {
     void setUpPreview() {
         final Camera.Size cameraSize = mCameraParameters.getPreviewSize();
 
-        // From Camera.setPreviewFormat() Javadoc for calculating YV12 buffer size:
-        final float yStride   = (int) Math.ceil(cameraSize.width / 16.0) * 16;
-        final float uvStride  = (int) Math.ceil( (yStride / 2) / 16.0) * 16;
-        final float ySize     = yStride * cameraSize.height;
-        final float uvSize    = uvStride * cameraSize.height / 2;
-        final float size      = ySize + uvSize * 2;
-        final int bufferSize  = (int) size;
+        final int format = mCameraParameters.getPreviewFormat();
+        final int bufferSize;
+        if (format == ImageFormat.YV12) {
+            // From Camera.setPreviewFormat() Javadoc for calculating YV12 buffer size:
+            final float yStride = (int) Math.ceil(cameraSize.width / 16.0) * 16;
+            final float uvStride = (int) Math.ceil((yStride / 2) / 16.0) * 16;
+            final float ySize = yStride * cameraSize.height;
+            final float uvSize = uvStride * cameraSize.height / 2;
+            final float size = ySize + uvSize * 2;
+            bufferSize = (int) size;
+
+        } else {
+            bufferSize = cameraSize.width * cameraSize.height * ImageFormat.getBitsPerPixel(format);
+        }
 
         try {
             final byte[] buffer = new byte[bufferSize];
@@ -366,15 +373,15 @@ class Camera1 extends CameraViewImpl implements Camera.PreviewCallback {
             if (mShowingPreview) {
                 mCamera.stopPreview();
             }
-            mCameraParameters.setPreviewFormat(ImageFormat.YV12);
+            mCameraParameters.setPreviewFormat(ImageFormat.NV21);
             mCameraParameters.setPreviewSize(size.getWidth(), size.getHeight());
             mCameraParameters.setPictureSize(pictureSize.getWidth(), pictureSize.getHeight());
             mCameraParameters.setRotation(calcCameraRotation(mDisplayOrientation));
             setAutoFocusInternal(mAutoFocus);
             setFlashInternal(mFlash);
-            mCamera.setParameters(mCameraParameters);
-
             setUpPreview();
+
+            mCamera.setParameters(mCameraParameters);
 
             if (mShowingPreview) {
                 mCamera.startPreview();
