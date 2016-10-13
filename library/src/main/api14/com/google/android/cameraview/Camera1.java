@@ -17,6 +17,7 @@
 package com.google.android.cameraview;
 
 import android.annotation.SuppressLint;
+import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.os.Build;
@@ -24,12 +25,13 @@ import android.support.v4.util.SparseArrayCompat;
 import android.view.SurfaceHolder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
 
 @SuppressWarnings("deprecation")
-class Camera1 extends CameraViewImpl {
+class Camera1 extends CameraViewImpl implements Camera.PreviewCallback {
 
     private static final int INVALID_CAMERA_ID = -1;
 
@@ -67,17 +69,19 @@ class Camera1 extends CameraViewImpl {
 
     private int mDisplayOrientation;
 
+    private ByteBuffer mByteBuffer;
+
     Camera1(Callback callback, PreviewImpl preview) {
         super(callback, preview);
         preview.setCallback(new PreviewImpl.Callback() {
-                @Override
-                public void onSurfaceChanged() {
-                    if (mCamera != null) {
-                        setUpPreview();
-                        adjustCameraParameters();
-                    }
+            @Override
+            public void onSurfaceChanged() {
+                if (mCamera != null) {
+                    setUpPreview();
+                    adjustCameraParameters();
                 }
-            });
+            }
+        });
     }
 
     @Override
@@ -102,7 +106,22 @@ class Camera1 extends CameraViewImpl {
 
     @SuppressLint("NewApi") // Suppresses Camera#setPreviewTexture
     private void setUpPreview() {
+        final Camera.Size cameraSize = mCameraParameters.getPreviewSize();
+
+        // From Camera.setPreviewFormat() Javadoc for calculating YV12 buffer size:
+        final float yStride   = (int) Math.ceil(cameraSize.width / 16.0) * 16;
+        final float uvStride  = (int) Math.ceil( (yStride / 2) / 16.0) * 16;
+        final float ySize     = yStride * cameraSize.height;
+        final float uvSize    = uvStride * cameraSize.height / 2;
+        final float size      = ySize + uvSize * 2;
+        final int bufferSize  = (int) size;
+
         try {
+            final byte[] buffer = new byte[bufferSize];
+            mByteBuffer = ByteBuffer.wrap(buffer);
+            mCamera.addCallbackBuffer(buffer);
+            mCamera.setPreviewCallbackWithBuffer(this);
+
             if (mPreview.getOutputClass() == SurfaceHolder.class) {
                 final boolean needsToStopPreview = mShowingPreview &&
                         Build.VERSION.SDK_INT < Build.VERSION_CODES.ICE_CREAM_SANDWICH;
@@ -119,6 +138,16 @@ class Camera1 extends CameraViewImpl {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override public void onPreviewFrame(
+        final byte[] data,
+        final Camera camera) {
+        mCamera.addCallbackBuffer(mByteBuffer.array());
+        mCamera.setPreviewCallbackWithBuffer(this);
+
+        final Camera.Size cameraSize = mCameraParameters.getPreviewSize();
+        mCallback.onPictureTaken(mByteBuffer, cameraSize.width, cameraSize.height);
     }
 
     @Override
@@ -222,10 +251,11 @@ class Camera1 extends CameraViewImpl {
     }
 
     private void takePictureInternal() {
+        final Camera.Size size = mCameraParameters.getPictureSize();
         mCamera.takePicture(null, null, null, new Camera.PictureCallback() {
             @Override
             public void onPictureTaken(byte[] data, Camera camera) {
-                mCallback.onPictureTaken(data);
+                mCallback.onPictureTaken(ByteBuffer.wrap(data), size.width, size.height);
                 camera.startPreview();
             }
         });
@@ -311,12 +341,16 @@ class Camera1 extends CameraViewImpl {
             if (mShowingPreview) {
                 mCamera.stopPreview();
             }
+            mCameraParameters.setPreviewFormat(ImageFormat.YV12);
             mCameraParameters.setPreviewSize(size.getWidth(), size.getHeight());
             mCameraParameters.setPictureSize(pictureSize.getWidth(), pictureSize.getHeight());
             mCameraParameters.setRotation(calcCameraRotation(mDisplayOrientation));
             setAutoFocusInternal(mAutoFocus);
             setFlashInternal(mFlash);
             mCamera.setParameters(mCameraParameters);
+
+            setUpPreview();
+
             if (mShowingPreview) {
                 mCamera.startPreview();
             }
@@ -352,6 +386,7 @@ class Camera1 extends CameraViewImpl {
 
     private void releaseCamera() {
         if (mCamera != null) {
+            mCamera.setPreviewCallbackWithBuffer(null);
             mCamera.release();
             mCamera = null;
             mCallback.onCameraClosed();
