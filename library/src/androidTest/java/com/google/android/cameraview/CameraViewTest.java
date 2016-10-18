@@ -338,11 +338,10 @@ public class CameraViewTest {
 
             @Override public void onPictureTaken(
                 final CameraView cameraView,
-                final ByteBuffer data,
-                final int width,
-                final int height) {
+                final PictureData pictureData) {
 
                 if (!mIsIdleNow) {
+                    ByteBuffer data = pictureData.getData();
                     mIsIdleNow = true;
                     mValidJpeg = data.limit() > 2 &&
                             data.get(0) == (byte) 0xFF && data.get(1) == (byte) 0xD8;

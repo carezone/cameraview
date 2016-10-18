@@ -159,7 +159,8 @@ class Camera1 extends CameraViewImpl implements Camera.PreviewCallback {
         mCamera.setPreviewCallbackWithBuffer(this);
 
         final Camera.Size cameraSize = mCameraParameters.getPreviewSize();
-        mCallback.onPictureTaken(mByteBuffer, cameraSize.width, cameraSize.height);
+        mCallback.onPictureTaken(new PictureData(
+                    mByteBuffer, cameraSize.width, cameraSize.width, cameraSize.height));
     }
 
     @Override
@@ -280,7 +281,8 @@ class Camera1 extends CameraViewImpl implements Camera.PreviewCallback {
                     isPictureCaptureInProgress.set(false);
 
                     final Camera.Size size = camera.getParameters().getPictureSize();
-                    mCallback.onPictureTaken(ByteBuffer.wrap(data), size.width, size.height);
+                    mCallback.onPictureTaken(new PictureData(
+                            ByteBuffer.wrap(data), size.width, size.width, size.height));
                     camera.cancelAutoFocus();
                     camera.startPreview();
                 }

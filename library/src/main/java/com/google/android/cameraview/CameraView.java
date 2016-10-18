@@ -444,9 +444,9 @@ public class CameraView extends FrameLayout {
         }
 
         @Override
-        public void onPictureTaken(ByteBuffer data, int width, int height) {
+        public void onPictureTaken(PictureData pictureData) {
             for (Callback callback : mCallbacks) {
-                callback.onPictureTaken(CameraView.this, data, width, height);
+                callback.onPictureTaken(CameraView.this, pictureData);
             }
         }
 
@@ -529,12 +529,10 @@ public class CameraView extends FrameLayout {
         /**
          * Called when a picture is taken.
          *
-         * @param cameraView The associated {@link CameraView}.
-         * @param data       Frame data.
-         * @param width      Frame width.
-         * @param height     Frame height.
+         * @param cameraView  The associated {@link CameraView}.
+         * @param pictureData Frame data.
          */
-        void onPictureTaken(CameraView cameraView, ByteBuffer data, int width, int height);
+        void onPictureTaken(CameraView cameraView, PictureData pictureData);
     }
 
     /**
@@ -550,7 +548,7 @@ public class CameraView extends FrameLayout {
         public void onCameraClosed(CameraView cameraView) {
         }
 
-        public void onPictureTaken(CameraView cameraView, ByteBuffer data, int width, int height) {
+        public void onPictureTaken(CameraView cameraView, PictureData pictureData) {
         }
     }
 

@@ -16,6 +16,9 @@
 
 package com.google.android.cameraview.demo;
 
+import com.google.android.cameraview.CameraView;
+import com.google.android.cameraview.PictureData;
+
 import android.Manifest;
 import android.app.Dialog;
 import android.content.DialogInterface;
@@ -237,9 +240,8 @@ public class MainActivity extends AppCompatActivity implements
             Log.d(TAG, "onCameraClosed");
         }
 
-        @Override public void onPictureTaken(CameraView cameraView, final ByteBuffer data,
-                                             int width, int height) {
-                Log.d(TAG, "onPictureTaken " + data.remaining());
+        @Override public void onPictureTaken(CameraView cameraView, final PictureData pictureData) {
+                Log.d(TAG, "onPictureTaken " + pictureData.getData().remaining());
                 Toast.makeText(cameraView.getContext(), R.string.picture_taken, Toast.LENGTH_SHORT)
                         .show();
                 getBackgroundHandler().post(new Runnable() {
@@ -251,7 +253,7 @@ public class MainActivity extends AppCompatActivity implements
                         try {
                             os = new FileOutputStream(file);
                             final WritableByteChannel channel = Channels.newChannel(os);
-                            channel.write(data);
+                            channel.write(pictureData.getData());
                             channel.close();
 
                         } catch (IOException e) {

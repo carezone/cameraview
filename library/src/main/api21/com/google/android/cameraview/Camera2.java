@@ -162,8 +162,10 @@ class Camera2 extends CameraViewImpl {
                 final Image.Plane[] planes = image.getPlanes();
                 if (planes.length > 0) {
                     final Image.Plane plane = planes[0];
-                    mCallback.onPictureTaken(
-                        plane.getBuffer(), image.getWidth(), image.getHeight());
+                    mCallback.onPictureTaken(new PictureData(
+                            plane.getBuffer(), plane.getRowStride(),
+                            image.getWidth(), image.getHeight())
+                    );
                 }
             }
         }
