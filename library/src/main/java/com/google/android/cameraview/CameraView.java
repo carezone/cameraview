@@ -25,15 +25,11 @@ import android.os.Parcelable;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.os.ParcelableCompat;
-import android.support.v4.os.ParcelableCompatCreatorCallbacks;
-import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
 import android.widget.FrameLayout;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Set;
 
@@ -90,21 +86,31 @@ public class CameraView extends FrameLayout {
     @SuppressWarnings("WrongConstant")
     public CameraView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        if (isInEditMode()){
+
+        if (isInEditMode()) {
             mCallbacks = null;
             mDisplayOrientationDetector = null;
             return;
         }
+
         // Internal setup
-        final PreviewImpl preview = createPreviewImpl(context);
+        final PreviewImpl preview;
+        if (Build.VERSION.SDK_INT >= 24 || Build.VERSION.SDK_INT < 14) {
+            preview = new SurfaceViewPreview(context, this);
+        } else {
+            preview = new TextureViewPreview(context, this);
+        }
+
         mCallbacks = new CallbackBridge();
-//        if (Build.VERSION.SDK_INT < 21) {
+
+        if (isInEditMode()) {
+            mImpl = new NoCameraImpl(mCallbacks, preview);
+        } else if (Build.VERSION.SDK_INT < 21) {
             mImpl = new Camera1(mCallbacks, preview);
-//        } else if (Build.VERSION.SDK_INT < 23) {
-//            mImpl = new Camera2(mCallbacks, preview, context);
-//        } else {
-//            mImpl = new Camera2Api23(mCallbacks, preview, context);
-//        }
+        } else {
+            mImpl = new Camera2(mCallbacks, preview, context);
+        }
+
         // Attributes
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CameraView, defStyleAttr,
                 R.style.Widget_CameraView);
@@ -119,6 +125,7 @@ public class CameraView extends FrameLayout {
         setAutoFocus(a.getBoolean(R.styleable.CameraView_autoFocus, true));
         setFlash(a.getInt(R.styleable.CameraView_flash, Constants.FLASH_AUTO));
         a.recycle();
+
         // Display orientation detector
         mDisplayOrientationDetector = new DisplayOrientationDetector(context) {
             @Override
@@ -143,7 +150,7 @@ public class CameraView extends FrameLayout {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         if (!isInEditMode()) {
-            mDisplayOrientationDetector.enable(ViewCompat.getDisplay(this));
+            mDisplayOrientationDetector.enable(getDisplay());
         }
     }
 
@@ -402,7 +409,7 @@ public class CameraView extends FrameLayout {
 
     /**
      * Take a picture. The result will be returned to
-     * {@link Callback#onPictureTaken(CameraView, ByteBuffer, int, int)}.
+     * {@link Callback#onPictureTaken(CameraView, PictureData)}.
      */
     public void takePicture() {
         mImpl.takePicture();
@@ -468,10 +475,10 @@ public class CameraView extends FrameLayout {
         int flash;
 
         @SuppressWarnings("WrongConstant")
-        public SavedState(Parcel source, ClassLoader loader) {
+        public SavedState(Parcel source) {
             super(source);
             facing = source.readInt();
-            ratio = source.readParcelable(loader);
+            ratio = source.readParcelable(AspectRatio.class.getClassLoader());
             autoFocus = source.readByte() != 0;
             flash = source.readInt();
         }
@@ -489,20 +496,17 @@ public class CameraView extends FrameLayout {
             out.writeInt(flash);
         }
 
-        public static final Creator<SavedState> CREATOR
-                = ParcelableCompat.newCreator(new ParcelableCompatCreatorCallbacks<SavedState>() {
-
+        public static final Creator<SavedState> CREATOR = new Parcelable.Creator<SavedState>() {
             @Override
-            public SavedState createFromParcel(Parcel in, ClassLoader loader) {
-                return new SavedState(in, loader);
+            public SavedState createFromParcel(Parcel in) {
+                return new SavedState(in);
             }
 
             @Override
             public SavedState[] newArray(int size) {
                 return new SavedState[size];
             }
-
-        });
+        };
 
     }
 

@@ -28,7 +28,8 @@ import android.view.Surface;
  */
 abstract class DisplayOrientationDetector {
 
-    private final OrientationEventListener mOrientationEventListener;
+    private final Context mContext;
+    private OrientationEventListener mOrientationEventListener;
 
     /** Mapping from Surface.Rotation_n to degrees. */
     static final SparseIntArray DISPLAY_ORIENTATIONS = new SparseIntArray();
@@ -45,35 +46,23 @@ abstract class DisplayOrientationDetector {
     private int mLastKnownDisplayOrientation = 0;
 
     public DisplayOrientationDetector(Context context) {
-        mOrientationEventListener = new OrientationEventListener(context) {
-
-            /** This is either Surface.Rotation_0, _90, _180, _270, or -1 (invalid). */
-            private int mLastKnownRotation = -1;
-
-            @Override
-            public void onOrientationChanged(int orientation) {
-                if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN ||
-                        mDisplay == null) {
-                    return;
-                }
-                final int rotation = mDisplay.getRotation();
-                if (mLastKnownRotation != rotation) {
-                    mLastKnownRotation = rotation;
-                    dispatchOnDisplayOrientationChanged(DISPLAY_ORIENTATIONS.get(rotation));
-                }
-            }
-        };
+        mContext = context;
     }
 
     public void enable(Display display) {
         mDisplay = display;
+
+        mOrientationEventListener = new DisplayOrientationEventListener();
         mOrientationEventListener.enable();
+
         // Immediately dispatch the first callback
         dispatchOnDisplayOrientationChanged(DISPLAY_ORIENTATIONS.get(display.getRotation()));
     }
 
     public void disable() {
         mOrientationEventListener.disable();
+        mOrientationEventListener = null;
+
         mDisplay = null;
     }
 
@@ -92,5 +81,29 @@ abstract class DisplayOrientationDetector {
      * @param displayOrientation One of 0, 90, 180, and 270.
      */
     public abstract void onDisplayOrientationChanged(int displayOrientation);
+
+    private class DisplayOrientationEventListener
+        extends OrientationEventListener {
+
+        /** This is either Surface.Rotation_0, _90, _180, _270, or -1 (invalid). */
+        private int mLastKnownRotation = -1;
+
+        public DisplayOrientationEventListener() {
+            super(mContext);
+        }
+
+        @Override
+        public void onOrientationChanged(int orientation) {
+            if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN ||
+                mDisplay == null) {
+                return;
+            }
+            final int rotation = mDisplay.getRotation();
+            if (mLastKnownRotation != rotation) {
+                mLastKnownRotation = rotation;
+                dispatchOnDisplayOrientationChanged(DISPLAY_ORIENTATIONS.get(rotation));
+            }
+        }
+    }
 
 }
