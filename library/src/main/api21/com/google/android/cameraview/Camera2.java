@@ -208,6 +208,8 @@ class Camera2 extends CameraViewImpl {
         mPreview.setCallback(new PreviewImpl.Callback() {
             @Override
             public void onSurfaceChanged() {
+                // Calling this twice fixes a camera distortion issue on the Samsung Galaxy S6
+                startCaptureSession();
                 startCaptureSession();
             }
         });
