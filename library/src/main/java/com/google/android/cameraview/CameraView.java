@@ -115,13 +115,13 @@ public class CameraView extends FrameLayout {
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CameraView, defStyleAttr,
                 R.style.Widget_CameraView);
         mAdjustViewBounds = a.getBoolean(R.styleable.CameraView_android_adjustViewBounds, false);
+        final String aspectRatioStr = a.getString(R.styleable.CameraView_aspectRatio);
+        final AspectRatio aspectRatio = (aspectRatioStr != null)
+                ? AspectRatio.parse(aspectRatioStr)
+                : Constants.DEFAULT_ASPECT_RATIO;
+
         setFacing(a.getInt(R.styleable.CameraView_facing, FACING_BACK));
-        String aspectRatio = a.getString(R.styleable.CameraView_aspectRatio);
-        if (aspectRatio != null) {
-            setAspectRatio(AspectRatio.parse(aspectRatio));
-        } else {
-            setAspectRatio(Constants.DEFAULT_ASPECT_RATIO);
-        }
+        setAspectRatio(aspectRatio);
         setAutoFocus(a.getBoolean(R.styleable.CameraView_autoFocus, true));
         setFlash(a.getInt(R.styleable.CameraView_flash, Constants.FLASH_AUTO));
         a.recycle();
@@ -253,7 +253,7 @@ public class CameraView extends FrameLayout {
     public void start() {
         if (!mImpl.start()) {
             //store the state ,and restore this state after fall back o Camera1
-            Parcelable state=onSaveInstanceState();
+            Parcelable state = onSaveInstanceState();
             // Camera2 uses legacy hardware layer; fall back to Camera1
             mImpl = new Camera1(mCallbacks, createPreviewImpl(getContext()));
             onRestoreInstanceState(state);
@@ -334,7 +334,6 @@ public class CameraView extends FrameLayout {
      */
     @Facing
     public int getFacing() {
-        //noinspection WrongConstant
         return mImpl.getFacing();
     }
 

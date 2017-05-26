@@ -103,6 +103,9 @@ class Camera2 extends CameraViewImpl {
             if (mCamera == null) {
                 return;
             }
+            if (mCaptureSession != null) {
+                mCaptureSession.close();
+            }
             mCaptureSession = session;
             updateAutoFocus();
             updateFlash();
@@ -111,8 +114,7 @@ class Camera2 extends CameraViewImpl {
                         mCaptureCallback, null);
             } catch (CameraAccessException e) {
                 Log.e(TAG, "Failed to start camera preview because it couldn't access camera", e);
-            } catch (IllegalStateException e) {
-                Log.e(TAG, "Failed to start camera preview.", e);
+            } catch (IllegalStateException ignored) {
             }
         }
 

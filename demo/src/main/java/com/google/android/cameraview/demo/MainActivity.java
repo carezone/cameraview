@@ -23,6 +23,9 @@ import android.Manifest;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -230,6 +233,8 @@ public class MainActivity extends AppCompatActivity implements
     private CameraView.Callback mCallback
             = new CameraView.Callback() {
 
+        public int mPictureCount;
+
         @Override
         public void onCameraOpened(CameraView cameraView) {
             Log.d(TAG, "onCameraOpened");
@@ -240,24 +245,43 @@ public class MainActivity extends AppCompatActivity implements
             Log.d(TAG, "onCameraClosed");
         }
 
-        @Override public void onPictureTaken(CameraView cameraView, final PictureData pictureData) {
-                Log.d(TAG, "onPictureTaken " + pictureData.getData().remaining());
-                Toast.makeText(cameraView.getContext(), R.string.picture_taken, Toast.LENGTH_SHORT)
-                        .show();
+        @Override
+        public void onPictureTaken(CameraView cameraView, final PictureData pictureData) {
+            Log.d(TAG, "onPictureTaken " + pictureData.getData().remaining());
+
+            mPictureCount++;
+            if (mPictureCount == 50) {
+
+                final ByteBuffer data = pictureData.getData();
+                final ByteBuffer buffer = ByteBuffer.allocate(data.capacity());
+                buffer.put(data);
+                buffer.rewind();
+
                 getBackgroundHandler().post(new Runnable() {
                     @Override
                     public void run() {
-                        File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+
+                        final int w = pictureData.getWidth();
+                        final int h = pictureData.getHeight();
+                        final int stride = pictureData.getRowStride();
+                        YuvImage yuvImage = new YuvImage(buffer.array(), ImageFormat.NV21,
+                                w, h, new int[]{stride, stride});
+
+                        File file = new File(
+                                getExternalFilesDir(Environment.DIRECTORY_PICTURES),
                                 "picture.jpg");
                         OutputStream os = null;
                         try {
                             os = new FileOutputStream(file);
-                            final WritableByteChannel channel = Channels.newChannel(os);
-                            channel.write(pictureData.getData());
-                            channel.close();
+
+                            yuvImage.compressToJpeg(new Rect(0, 0, w, h), 100, os);
+
+                            os.flush();
+                            Log.v(TAG, "Wrote file to " + file.getAbsolutePath());
 
                         } catch (IOException e) {
-                            Log.w(TAG, "Cannot write to " + file, e);
+                            throw new RuntimeException(e);
+
                         } finally {
                             if (os != null) {
                                 try {
@@ -269,6 +293,7 @@ public class MainActivity extends AppCompatActivity implements
                         }
                     }
                 });
+            }
         }
 
     };
